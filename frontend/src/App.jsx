@@ -6,6 +6,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [scanData, setScanData] = useState(null);
+  const [scanning, setScanning] = useState(false);
 
   const [models, setModels] = useState([]);
   const [modelId, setModelId] = useState('');
@@ -24,6 +26,24 @@ function App() {
     };
     fetchModels();
   }, []);
+
+  const runSecurityScan = async () => {
+    if (!result?.optimized_prompt) return;
+    setScanning(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: result.optimized_prompt, model_id: modelId }),
+      });
+      const data = await response.json();
+      setScanData(data);
+    } catch (err) {
+      console.error("Scan failed:", err);
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const handleOptimize = async () => {
     if (!draft.trim()) return;
@@ -180,6 +200,58 @@ function App() {
               <pre className="text-gray-100 whitespace-pre-wrap font-mono text-sm leading-relaxed">
                 {result.optimized_prompt}
               </pre>
+            </div>
+
+            <div className="mt-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Security Audit</h3>
+                  <p className="text-xs text-gray-500">Adversarial Red-Teaming Simulation</p>
+                </div>
+                <button
+                  onClick={runSecurityScan}
+                  disabled={scanning || !result}
+                  className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {scanning ? "Simulating Attacks..." : "Run Security Scan"}
+                </button>
+              </div>
+
+              {scanData ? (
+                <div className="space-y-6 animate-fade-in">
+                  {/* Safety Progress Bar */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-end">
+                      <span className="text-sm font-bold text-gray-600 uppercase tracking-tighter">Safety Rating</span>
+                      <span className={`text-2xl font-black ${scanData.safety_score > 75 ? 'text-green-600' : 'text-red-600'}`}>
+                        {scanData.safety_score}%
+                      </span>
+                    </div>
+                    <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
+                      <div
+                        className={`h-full transition-all duration-1000 ${scanData.safety_score > 75 ? 'bg-green-500' : 'bg-red-500'}`}
+                        style={{ width: `${scanData.safety_score}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Detailed Results Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {scanData.results.map((res, idx) => (
+                      <div key={idx} className="p-3 rounded-lg border border-gray-100 bg-gray-50 flex justify-between items-center">
+                        <span className="text-xs font-bold text-gray-500 uppercase">{res.type}</span>
+                        <span className={`text-[10px] font-black px-2 py-1 rounded ${res.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {res.passed ? "✓ SECURE" : "✗ VULNERABLE"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 border-2 border-dashed border-gray-100 rounded-xl">
+                  <p className="text-xs text-gray-400 italic">Click the button to test this prompt against common injection attacks.</p>
+                </div>
+              )}
             </div>
 
           </div>
